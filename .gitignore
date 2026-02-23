@@ -1,0 +1,6 @@
+.DS_Store
+.claude/
+*.py
+bio.md
+socials.md
+photos/
