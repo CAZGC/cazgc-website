@@ -2087,7 +2087,7 @@
       <div class="calc-grid">
         <div class="reveal-l">
           <span class="eyebrow">Try It Out</span>
-          <h2 class="section-title" id="calc-title">Estimate your standard tax savings.</h2>
+          <h2 class="section-title" id="calc-title">Estimate your standard tax savings. <span style="font-size:14px;font-weight:600;background:var(--blue);color:#fff;padding:3px 10px;border-radius:20px;vertical-align:middle;letter-spacing:.3px">FY 2025-26</span></h2>
           <p class="section-sub">A proactive approach to taxation isn't just about compliance &mdash; it's about
             optimizing what stays in your business. Use this quick estimator to see potential differences under the new
             vs old tax regimes (simplified standard assumption for Indian professionals).</p>
@@ -2106,7 +2106,7 @@
               <span class="calc-currency">&#8377;</span>
               <input type="text" id="c-receipts" class="calc-input" value="1200000" aria-label="Annual Receipts">
             </div>
-            <input type="range" id="c-range" class="calc-range" min="500000" max="7500000" step="50000" value="1200000"
+            <input type="range" id="c-range" class="calc-range" min="500000" max="15000000" step="50000" value="1200000"
               aria-label="Adjust Annual Receipts">
           </div>
 
@@ -2122,7 +2122,7 @@
             <div class="calc-res-row">
               <span class="calc-res-lbl">Estimated Tax (New Regime)</span>
               <span class="calc-res-val" id="c-tax-new"><span class="calc-tag" style="margin-right:8px">Nil up to
-                  7L</span>&#8377;0</span>
+                  12L</span>&#8377;0</span>
             </div>
             <div class="calc-res-row">
               <span class="calc-res-lbl" style="color:var(--t1);font-weight:700">Potential Savings</span>
@@ -2130,7 +2130,7 @@
             </div>
           </div>
           <p style="font-size:11px;color:var(--ts);margin-top:14px;line-height:1.5;">*Note: This is a highly simplified
-            illustrative calculator assuming Section 44ADA eligibility with no other income or specific 80C/D deductions
+            illustrative calculator assuming Section 44ADA eligibility for FY 2025-26 (AY 2026-27) with no other income or specific 80C/D deductions
             under the old regime. Actual tax liability depends on precise financial assessment.</p>
         </div>
       </div>
@@ -2505,7 +2505,33 @@
         window.addEventListener('scroll', function () { btt.classList.toggle('visible', window.scrollY > 500); }, { passive: true });
         btt.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
       }
-      /* TAX CALCULATOR LOGIC */
+      /* TAX CALCULATOR LOGIC — FY 2025-26 (Finance Act 2025) */
+      var TAX_CONFIG = {
+        fy: '2025-26',
+        newRegime: {
+          slabs: [[400000,0],[800000,0.05],[1200000,0.10],[1600000,0.15],[2000000,0.20],[2400000,0.25],[Infinity,0.30]],
+          rebate87A: { limit: 1200000, maxRebate: 60000 }
+        },
+        oldRegime: {
+          slabs: [[250000,0],[500000,0.05],[1000000,0.20],[Infinity,0.30]],
+          rebate87A: { limit: 500000, maxRebate: 12500 }
+        },
+        cess: 0.04,
+        presumptiveRate: 0.5,
+        sliderMax: 15000000
+      };
+
+      function calcSlab(income, slabs) {
+        var tax = 0, prev = 0;
+        for (var i = 0; i < slabs.length; i++) {
+          var cap = slabs[i][0], rate = slabs[i][1];
+          if (income <= cap) { tax += (income - prev) * rate; break; }
+          tax += (cap - prev) * rate;
+          prev = cap;
+        }
+        return tax;
+      }
+
       var cr = document.getElementById('c-range'), ci = document.getElementById('c-receipts'), cv = document.getElementById('c-receipts-val');
       var cp = document.getElementById('c-presumptive'), cto = document.getElementById('c-tax-old'), ctn = document.getElementById('c-tax-new'), cs = document.getElementById('c-savings');
 
@@ -2513,39 +2539,24 @@
 
       function calcTax(val) {
         var amt = parseInt(val) || 0;
+        var income = amt * TAX_CONFIG.presumptiveRate;
 
-        // Presumptive income under 44ADA (50% of receipts)
-        var income = amt * 0.5;
+        // Old Regime
+        var oldTax = calcSlab(income, TAX_CONFIG.oldRegime.slabs);
+        if (income <= TAX_CONFIG.oldRegime.rebate87A.limit && income > 0) oldTax = Math.max(0, oldTax - TAX_CONFIG.oldRegime.rebate87A.maxRebate);
+        if (oldTax > 0) oldTax *= (1 + TAX_CONFIG.cess);
 
-        // Simplistic Old Regime Calculation (no deductions assumed for illustrative contrast)
-        var oldTax = 0;
-        if (income > 250000) {
-          if (income <= 500000) oldTax = (income - 250000) * 0.05;
-          else if (income <= 1000000) oldTax = 12500 + ((income - 500000) * 0.20);
-          else oldTax = 112500 + ((income - 1000000) * 0.30);
-        }
-        // Rebate 87A (Old Regime - income up to 5L)
-        if (income <= 500000 && income > 0) oldTax = Math.max(0, oldTax - 12500);
-        if (oldTax > 0) oldTax *= 1.04; // Cess
-
-        // Simplistic New Regime Calculation
-        var newTax = 0;
-        if (income > 300000) {
-          if (income <= 600000) newTax = (income - 300000) * 0.05;
-          else if (income <= 900000) newTax = 15000 + ((income - 600000) * 0.10);
-          else if (income <= 1200000) newTax = 45000 + ((income - 900000) * 0.15);
-          else if (income <= 1500000) newTax = 90000 + ((income - 1200000) * 0.20);
-          else newTax = 150000 + ((income - 1500000) * 0.30);
-        }
-        // Rebate 87A (New Regime - income up to 7L gets full rebate essentially)
-        if (income <= 700000 && income > 0) newTax = 0;
-        if (newTax > 0) newTax *= 1.04; // Cess
+        // New Regime FY 2025-26 (Finance Act 2025)
+        var newTax = calcSlab(income, TAX_CONFIG.newRegime.slabs);
+        // Rebate 87A (New Regime - income up to 12L gets full rebate, max ₹60,000)
+        if (income <= TAX_CONFIG.newRegime.rebate87A.limit && income > 0) newTax = 0;
+        if (newTax > 0) newTax *= (1 + TAX_CONFIG.cess);
 
         // Updates
         cv.innerHTML = '&#8377;' + fmtInr(amt);
         cp.innerHTML = '&#8377;' + fmtInr(income);
         cto.innerHTML = '&#8377;' + fmtInr(oldTax);
-        ctn.innerHTML = (income <= 700000 ? '<span class="calc-tag" style="margin-right:8px">Nil up to 7L</span>' : '') + '&#8377;' + fmtInr(newTax);
+        ctn.innerHTML = (income <= TAX_CONFIG.newRegime.rebate87A.limit ? '<span class="calc-tag" style="margin-right:8px">Nil up to 12L</span>' : '') + '&#8377;' + fmtInr(newTax);
 
         var savings = Math.max(0, oldTax - newTax);
         cs.innerHTML = '&#8377;' + fmtInr(savings);
@@ -2558,10 +2569,9 @@
           calcTax(e.target.value);
         });
         ci.addEventListener('input', function (e) {
-          // strip non numeric
           var val = e.target.value.replace(/[^0-9]/g, '');
           if (val) {
-            cr.value = Math.min(Math.max(val, 0), 7500000); // capped for UX slider
+            cr.value = Math.min(Math.max(val, 0), TAX_CONFIG.sliderMax);
             calcTax(val);
           }
         });
